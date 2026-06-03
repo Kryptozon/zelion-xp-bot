@@ -1,5 +1,3 @@
-Build Command:
-pip install -r requirements.txt
+Zelion XP Bot
 
-Start Command:
-python bot.py
+Upload files to GitHub and deploy on Render.
