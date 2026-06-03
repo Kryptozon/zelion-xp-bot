@@ -68,7 +68,7 @@ for column in [
         pass
 
 XP_PER_MESSAGE = 2
-COOLDOWN = 60
+COOLDOWN = 0
 MIN_MESSAGE_LENGTH = 10
 SOCIAL_XP_PER_FOLLOW = 30
 
