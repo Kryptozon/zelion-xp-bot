@@ -1,13 +1,37 @@
 import logging
 import sqlite3
 import time
+from threading import Thread
+from flask import Flask
+
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
 BOT_TOKEN = "8861951102:AAEEAVH_P3E533ljMepn8qbzBMLG-4vXq0g"
 
 logging.basicConfig(level=logging.INFO)
 
+# Flask keepalive server for Render free web service
+web_app = Flask(__name__)
+
+@web_app.route("/")
+def home():
+    return "Zelion XP Bot is running!"
+
+def run_web():
+    web_app.run(host="0.0.0.0", port=10000)
+
+def keep_alive():
+    t = Thread(target=run_web)
+    t.start()
+
+# Database
 conn = sqlite3.connect("xp.db", check_same_thread=False)
 cur = conn.cursor()
 
@@ -27,6 +51,7 @@ COOLDOWN = 60
 
 async def rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+
     cur.execute("SELECT xp FROM users WHERE user_id=?", (user.id,))
     row = cur.fetchone()
 
@@ -41,8 +66,9 @@ async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur.execute("SELECT username, xp FROM users ORDER BY xp DESC LIMIT 10")
     rows = cur.fetchall()
 
-    text = "🏆 Zelion Leaderboard\n\n"
     medals = ["🥇", "🥈", "🥉"]
+
+    text = "🏆 Zelion Leaderboard\n\n"
 
     for i, row in enumerate(rows):
         medal = medals[i] if i < 3 else "🔹"
@@ -75,11 +101,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     now = int(time.time())
 
-    cur.execute("SELECT xp, last_message FROM users WHERE user_id=?", (user.id,))
+    cur.execute(
+        "SELECT xp, last_message FROM users WHERE user_id=?",
+        (user.id,)
+    )
+
     row = cur.fetchone()
 
     if row:
         xp, last = row
+
         if now - last < COOLDOWN:
             return
 
@@ -100,14 +131,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
 
 def main():
+    keep_alive()
+
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("rank", rank))
     app.add_handler(CommandHandler("top", top))
     app.add_handler(CommandHandler("invite", invite))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler))
+    app.add_handler(
+        MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler)
+    )
 
-    print("🚀 Zelion XP Bot running...")
+    print("🚀 Zelion XP Bot running on Render...")
     app.run_polling()
 
 if __name__ == "__main__":
