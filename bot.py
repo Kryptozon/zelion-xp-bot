@@ -11,7 +11,7 @@ REQUIRED_CHANNEL = -1003423593105
 REQUIRED_CHANNEL_LINK = "https://t.me/zelionglobal"
 
 # Your personal Telegram user ID
-ADMIN_IDS = [8883747941]
+ADMIN_IDS = [1087968824]
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
 
