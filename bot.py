@@ -253,6 +253,7 @@ def get_user_display(user_id):
 
 def social_status_text(user):
     ensure_user(user)
+
     columns = []
     for data in SOCIALS.values():
         columns.append(data["claimed"])
@@ -263,19 +264,42 @@ def social_status_text(user):
     status = dict(zip(columns, row or []))
 
     lines = []
+    approved_count = 0
+    pending_count = 0
+    not_submitted_count = 0
+
     for data in SOCIALS.values():
-        claimed = status.get(data["claimed"], 0) == 1
+        approved = status.get(data["claimed"], 0) == 1
         pending = status.get(data["pending"], 0) == 1
-        mark = "✅ Approved" if claimed else ("⏳ Pending admin approval" if pending else "⬜ Not submitted")
-        lines.append(f"{mark}\n{data['label']}: {data['url']}\nSubmit proof: /{data['submit']}")
+
+        if approved:
+            approved_count += 1
+            mark = "✅ APPROVED"
+            action = "XP already added"
+        elif pending:
+            pending_count += 1
+            mark = "⏳ WAITING FOR ADMIN APPROVAL"
+            action = "Wait for admin approval"
+        else:
+            not_submitted_count += 1
+            mark = "❌ NOT APPROVED YET"
+            action = f"Submit: /{data['submit']}"
+
+        lines.append(
+            f"{mark}\n{data['label']}: {data['url']}\n{action}"
+        )
 
     total_possible = len(SOCIALS) * SOCIAL_XP_PER_FOLLOW
+
     return (
-        "🌐 ZelionTech Social XP Tasks\n\n"
+        "🌐 ZelionTech Social XP Status\n\n"
         f"Each approved follow = +{SOCIAL_XP_PER_FOLLOW} XP\n"
-        f"Total possible = +{total_possible} XP\n\n"
+        f"Total possible social XP = +{total_possible} XP\n\n"
         + "\n\n".join(lines)
-        + "\n\n📸 After submitting, send screenshot proof. Admin approval is required before XP is added."
+        + f"\n\n✅ Approved: {approved_count}/{len(SOCIALS)}"
+        + f"\n⏳ Pending: {pending_count}"
+        + f"\n❌ Not approved yet: {not_submitted_count}"
+        + "\n\n📸 To claim XP: follow the account, use the submit command, then wait for admin approval."
     )
 
 def submit_social(message, key):
