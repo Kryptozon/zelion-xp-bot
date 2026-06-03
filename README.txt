@@ -1,5 +1,3 @@
-Render Settings
-
 Build Command:
 pip install -r requirements.txt
 

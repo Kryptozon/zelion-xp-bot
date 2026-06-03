@@ -1,3 +1,2 @@
-python-telegram-bot==20.7
+pyTelegramBotAPI==4.26.0
 flask==3.0.3
-python-dotenv

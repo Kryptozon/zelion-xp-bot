@@ -1,23 +1,14 @@
-import logging
 import sqlite3
 import time
 from threading import Thread
+
 from flask import Flask
+import telebot
 
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+BOT_TOKEN = "8861951102:AAEEAVH_P3E533ljMepn8qbzBMLG-4vXq0g"
 
-BOT_TOKEN = "8861951102:AAGzVtuCA1oYgShCkfP1vB_IbQNnfwkMmKA"
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
 
-logging.basicConfig(level=logging.INFO)
-
-# Flask keepalive server for Render free web service
 web_app = Flask(__name__)
 
 @web_app.route("/")
@@ -28,10 +19,8 @@ def run_web():
     web_app.run(host="0.0.0.0", port=10000)
 
 def keep_alive():
-    t = Thread(target=run_web)
-    t.start()
+    Thread(target=run_web, daemon=True).start()
 
-# Database
 conn = sqlite3.connect("xp.db", check_same_thread=False)
 cur = conn.cursor()
 
@@ -48,64 +37,82 @@ conn.commit()
 
 XP_PER_MESSAGE = 2
 COOLDOWN = 60
+MIN_MESSAGE_LENGTH = 5
 
-async def rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
+def get_level(xp: int) -> int:
+    return int((xp / 100) ** 0.5) + 1
 
+@bot.message_handler(commands=["start"])
+def start(message):
+    bot.reply_to(
+        message,
+        "🚀 Zelion XP Bot is online!\n\nUse /rank, /top, and /invite."
+    )
+
+@bot.message_handler(commands=["rank"])
+def rank(message):
+    user = message.from_user
     cur.execute("SELECT xp FROM users WHERE user_id=?", (user.id,))
     row = cur.fetchone()
 
     xp = row[0] if row else 0
-    level = int((xp / 100) ** 0.5) + 1
+    level = get_level(xp)
+    name = user.first_name or user.username or "User"
 
-    await update.message.reply_text(
-        f"🏆 {user.first_name}\nLevel: {level}\nXP: {xp}"
-    )
+    bot.reply_to(message, f"🏆 {name}\nLevel: {level}\nXP: {xp}")
 
-async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@bot.message_handler(commands=["top"])
+def top(message):
     cur.execute("SELECT username, xp FROM users ORDER BY xp DESC LIMIT 10")
     rows = cur.fetchall()
 
-    medals = ["🥇", "🥈", "🥉"]
+    if not rows:
+        bot.reply_to(message, "No XP yet. Start chatting to earn XP.")
+        return
 
+    medals = ["🥇", "🥈", "🥉"]
     text = "🏆 Zelion Leaderboard\n\n"
 
     for i, row in enumerate(rows):
         medal = medals[i] if i < 3 else "🔹"
-        text += f"{medal} {row[0]} — {row[1]} XP\n"
+        username = row[0] or "User"
+        text += f"{medal} {username} — {row[1]} XP\n"
 
-    await update.message.reply_text(text)
+    bot.reply_to(message, text)
 
-async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    link = await context.bot.create_chat_invite_link(
-        chat_id=update.effective_chat.id,
-        creates_join_request=False
-    )
+@bot.message_handler(commands=["invite"])
+def invite(message):
+    try:
+        link = bot.create_chat_invite_link(
+            chat_id=message.chat.id,
+            creates_join_request=False
+        )
+        bot.reply_to(message, f"🚀 Your invite link:\n{link.invite_link}")
+    except Exception as e:
+        bot.reply_to(
+            message,
+            "I could not create an invite link. Make me admin and give me Invite Users permission."
+        )
+        print("Invite error:", e)
 
-    await update.message.reply_text(
-        f"🚀 Your invite link:\n{link.invite_link}"
-    )
-
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
+@bot.message_handler(func=lambda message: True, content_types=["text"])
+def handle_message(message):
+    if not message.text:
         return
 
-    text = update.message.text.strip()
+    text = message.text.strip()
 
     if text.startswith("/"):
         return
 
-    if len(text) < 5:
+    if len(text) < MIN_MESSAGE_LENGTH:
         return
 
-    user = update.effective_user
+    user = message.from_user
     now = int(time.time())
+    name = user.first_name or user.username or "User"
 
-    cur.execute(
-        "SELECT xp, last_message FROM users WHERE user_id=?",
-        (user.id,)
-    )
-
+    cur.execute("SELECT xp, last_message FROM users WHERE user_id=?", (user.id,))
     row = cur.fetchone()
 
     if row:
@@ -120,30 +127,20 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         UPDATE users
         SET xp=?, last_message=?, username=?
         WHERE user_id=?
-        """, (xp, now, user.first_name, user.id))
+        """, (xp, now, name, user.id))
 
     else:
         cur.execute("""
         INSERT INTO users(user_id, username, xp, last_message)
         VALUES (?, ?, ?, ?)
-        """, (user.id, user.first_name, XP_PER_MESSAGE, now))
+        """, (user.id, name, XP_PER_MESSAGE, now))
 
     conn.commit()
 
 def main():
     keep_alive()
-
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("rank", rank))
-    app.add_handler(CommandHandler("top", top))
-    app.add_handler(CommandHandler("invite", invite))
-    app.add_handler(
-        MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler)
-    )
-
-    print("🚀 Zelion XP Bot running on Render...")
-    app.run_polling()
+    print("🚀 Zelion XP Bot running on Render with TeleBot...")
+    bot.infinity_polling(timeout=60, long_polling_timeout=60)
 
 if __name__ == "__main__":
     main()
