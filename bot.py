@@ -8,7 +8,7 @@ import telebot
 BOT_TOKEN = "8861951102:AAGzVtuCA1oYgShCkfP1vB_IbQNnfwkMmKA"
 
 # Users must be members of this Telegram group/channel before using the bot.
-REQUIRED_CHANNEL = "@zelionglobal"
+REQUIRED_CHANNEL = "-1003423593105"
 REQUIRED_CHANNEL_LINK = "https://t.me/zelionglobal"
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
